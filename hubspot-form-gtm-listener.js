@@ -1,0 +1,44 @@
+/* HubSpot form listener by MD Niamul - mdniamul.com
+   Works with the classic (v3) embed and forms from the new forms editor (v4). */
+(function () {
+  window.dataLayer = window.dataLayer || [];
+  var sent = {};
+
+  function push(formId) {
+    var key = formId || 'form';
+    var now = new Date().getTime();
+    if (sent[key] && now - sent[key] < 3000) return; // one push per submit
+    sent[key] = now;
+    window.dataLayer.push({
+      event: 'hubspot_form_submit',
+      form_id: formId || '',
+      page_path: window.location.pathname
+    });
+  }
+
+  // Only trust HubSpot messages from this site or from HubSpot itself
+  function trusted(origin) {
+    if (origin === window.location.origin) return true;
+    try {
+      return /(^|\.)(hubspot\.com|hsforms\.com|hsforms\.net|hs-sites\.com|hubspotpagebuilder\.com)$/.test(new URL(origin).hostname);
+    } catch (e) { return false; }
+  }
+
+  // Classic embed (v3): HubSpot posts hsFormCallback / onFormSubmitted
+  window.addEventListener('message', function (e) {
+    if (!trusted(e.origin)) return;
+    var msg = e.data;
+    if (typeof msg === 'string') {
+      if (msg.indexOf('hsFormCallback') === -1) return;
+      try { msg = JSON.parse(msg); } catch (err) { return; }
+    }
+    if (!msg || typeof msg !== 'object') return;
+    if (msg.type === 'hsFormCallback' && msg.eventName === 'onFormSubmitted' && msg.id) push(msg.id);
+  });
+
+  // New forms editor (v4): HubSpot fires this event on window
+  window.addEventListener('hs-form-event:on-submission:success', function (e) {
+    var d = (e && e.detail) || {};
+    push(d.formId || '');
+  });
+})();
